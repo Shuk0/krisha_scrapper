@@ -112,19 +112,25 @@ def main():
     command_line_arguments = argv #parse argument from CLI
     page_number = int(1)
     numbers_of_added_options = int(0)
-    numbers_of_options = int(1)
     data = {}
      
     accepted_url = check_cli_arg(command_line_arguments)
+
+    soup = pagescrapper(accepted_url, page_number)
+    numbers_of_options = get_number_of_options(soup)
 
     # Scrapped and parsed site pages while numbers of parsed offers less than
     # numbers of offers stated by site
     while numbers_of_added_options < numbers_of_options:
 
         soup = pagescrapper(accepted_url, page_number)
-        numbers_of_options = get_number_of_options(soup)
+        options_counter = len(data)
         numbers_of_added_options = get_data(soup, data)
         
+        # There is a chance that an offer may be deleted during execution time of scrapper.py script.
+        # In this case the last page may not include any offers. Hence, it's worth to check a number of offers on the last
+        # page and if it's 0 than we need to invoke get_number_of_options function to update the variable numbers_of_options
+        if options_counter == numbers_of_added_options: numbers_of_options = get_number_of_options(soup)
         if numbers_of_added_options < numbers_of_options: page_number = page_number + 1
     
     cost_per_sq_m = get_cost_per_sq_m(data)
