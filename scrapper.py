@@ -3,6 +3,15 @@ from bs4 import BeautifulSoup
 from sys import argv
 import re
 
+def terminate_script(exit_code: int):
+    OUTPUT_MESSAGES = {1:"You missed an argument. It's expected a URL that should be grabbed.",
+        2:"Argument have to begin from 'https://krisha.kz'.",
+        3:"Too many arguments. It's expected just one argument which is URL to be grabbed."}
+    
+    print(OUTPUT_MESSAGES[exit_code])
+    exit(1)
+
+
 def check_cli_arg(command_line_arguments: list) -> str:
     """ Function check:
             - that URL was entered in a command line. If it wasn't than a user gets message and 
@@ -10,19 +19,15 @@ def check_cli_arg(command_line_arguments: list) -> str:
             - that URL starts with 'https://krisha.kz'. If it wasn't than a user gets message and 
                 is prompted to provide correct URL as an argument.
     """
-
+    
     if len(command_line_arguments) == 1:
-        print("You missed an argument. It's expected a URL that should be grabbed.")
-        exit(1)
+        terminate_script(1)
     elif len(command_line_arguments) == 2:
         cli_argument = command_line_arguments[1]
         if not re.search(re.compile('^https://krisha.kz'), cli_argument.strip()):
-            print("Argument have to begin from 'https://krisha.kz'.")
-            exit(1)
+            terminate_script(2)
     elif len(command_line_arguments) > 2:
-        print("Too many arguments. It's expected just one argument which is URL to be grabbed.")
-        exit(1)
-
+        terminate_script(3)
     return cli_argument.strip()
 
 def pagescrapper(accepted_url: str, page_number: int) -> BeautifulSoup:
