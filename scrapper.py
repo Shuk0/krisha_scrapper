@@ -81,9 +81,12 @@ def get_data(soup: BeautifulSoup, data: dict) -> int:
 def get_number_of_options(soup: BeautifulSoup) -> int:
     """ Function parse scrapped BeautifulSoup object and return number of options."""
     
-    text_with_numbers_of_options = soup.find('div',
-                                     class_='a-search-subtitle search-results-nb').text.strip().split()
-    numbers_of_options = int(text_with_numbers_of_options[1]) # number of options
+    content_of_div_with_number = soup.find('div',
+                                     class_='a-search-subtitle search-results-nb').text.strip()
+    try:
+        numbers_of_options = int(content_of_div_with_number.encode("ascii", "ignore")) # number of options
+    except TypeError:
+        print("Can't parse number of options as extracted text is the following" + numbers_of_options)
 
     return numbers_of_options
 
