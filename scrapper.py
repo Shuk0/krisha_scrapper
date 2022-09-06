@@ -45,7 +45,6 @@ def check_url(url:str) -> str:
     """Function check that URL starts with 'https://krisha.kz'"""
 
     if not re.search(re.compile('^https://krisha.kz'), url):
-            print(url)
             terminate_script(3)
     else:
         return url
@@ -69,7 +68,7 @@ def terminate_script(exit_code: int) -> None:
         1 : '''You missed an argument. It's exspected an URL or path to file with URL that should be grabbed. 
                Start the script with "-h" or "--help" optinal argument to get help''',
         2 : '''Too many arguments. It's exspected just one argument which URL or path to file with URL to be grabbed.
- 	            Start the script with "-h" or "--help" optinal argument to get help''',
+ 	           Start the script with "-h" or "--help" optinal argument to get help''',
         3 : "Argument have to begin from 'https://krisha.kz'",
         4 : "File not found. Check the path and restart the script.",
         5 : "Page is not available. Check connection and restart the script."
