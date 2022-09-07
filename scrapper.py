@@ -6,7 +6,8 @@ import re
 def terminate_script(exit_code: int):
     OUTPUT_MESSAGES = {1:"You missed an argument. It's expected a URL that should be grabbed.",
         2:"Argument have to begin from 'https://krisha.kz'.",
-        3:"Too many arguments. It's expected just one argument which is URL to be grabbed."}
+        3:"Too many arguments. It's expected just one argument which is URL to be grabbed.",
+        4:"Page is not available. Check connection and restart the script."}
     
     print(OUTPUT_MESSAGES[exit_code])
     exit(1)
@@ -30,12 +31,16 @@ def check_cli_arg(command_line_arguments: list) -> str:
         terminate_script(3)
     return cli_argument.strip()
 
-def pagescrapper(accepted_url: str, page_number: int) -> BeautifulSoup:
+def grab_html_page(accepted_url: str, page_number: int) -> BeautifulSoup:
     """ Function scrap site page by url and return BeautifulSoup object."""
 
     url = f'{accepted_url}&page={page_number}'
     
-    page = requests.get(url, timeout=0.5)
+    try:
+        page = requests.get(url, timeout=0.5)
+    except requests.ConnectionError as e:
+        terminate_script(4)
+    
     if page.status_code == 200:
         print(f'Page {page_number} scrapped. Status code: {page.status_code}', end = '\n')
 
@@ -121,14 +126,14 @@ def main():
      
     accepted_url = check_cli_arg(command_line_arguments)
 
-    soup = pagescrapper(accepted_url, page_number)
+    soup = grab_html_page(accepted_url, page_number)
     numbers_of_options = get_number_of_options(soup)
 
     # Scrapped and parsed site pages while numbers of parsed offers less than
     # numbers of offers stated by site
     while numbers_of_added_options < numbers_of_options:
 
-        soup = pagescrapper(accepted_url, page_number)
+        soup = grab_html_page(accepted_url, page_number)
         options_counter = len(data)
         numbers_of_added_options = get_data(soup, data)
         
