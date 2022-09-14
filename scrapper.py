@@ -4,10 +4,11 @@ from sys import argv
 import re
 
 def terminate_script(exit_code: int):
-    OUTPUT_MESSAGES = {1:"You missed an argument. It's expected a URL that should be grabbed.",
-        2:"Argument have to begin from 'https://krisha.kz'.",
-        3:"Too many arguments. It's expected just one argument which is URL to be grabbed.",
-        4:"Page is not available. Check connection and restart the script."}
+    OUTPUT_MESSAGES = {1: "You missed an argument. It's expected a URL that should be grabbed.",
+        2: "Argument have to begin from 'https://krisha.kz'.",
+        3: "Too many arguments. It's expected just one argument which is URL to be grabbed.",
+        4: "Page is not available. Check connection and restart the script.",
+        5: "Timeout Error. Please, check your connection."}
     
     print(OUTPUT_MESSAGES[exit_code])
     exit(1)
@@ -40,6 +41,8 @@ def grab_html_page(accepted_url: str, page_number: int) -> BeautifulSoup:
         page = requests.get(url, timeout=0.5)
     except requests.ConnectionError as e:
         terminate_script(4)
+    except requests.ReadTimeout:
+        terminate_script(5)
     
     if page.status_code == 200:
         print(f'Page {page_number} scrapped. Status code: {page.status_code}', end = '\n')
