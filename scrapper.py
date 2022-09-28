@@ -3,7 +3,7 @@ import re
 import requests
 from bs4 import BeautifulSoup
 
-def cli_parser() -> argparse.ArgumentParser:
+def parse_cli_arg() -> argparse.Namespace:
     """ Function parse a command line. 
         Function format: python scrapper.py [-h] [url] [-ff file_with_url], where:
             - [-h] or [--help] optional argument. Description of ArgumentParser will be printed;
@@ -13,17 +13,19 @@ def cli_parser() -> argparse.ArgumentParser:
     """
 
     cli_parser = argparse.ArgumentParser(description='Scrapper from krisha.kz')
-    cli_parser.add_argument('url', default=None, nargs='?',
+    group = cli_parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('url', default=None, nargs='?',
                             help='site url for scrapping. Have to start with symbols "https://krisha.kz"'
-                            )
-    cli_parser.add_argument('-ff', '--fromfile',  dest='file_with_url',
-                            help='''file with site url for scrapping.
-                            You have to specify the full path to file 
+                        )
+    group.add_argument('-ff', '--fromfile',  dest='file_with_url',
+                        help='''file with site url for scrapping.
+                             You have to specify the full path to file 
                             or file have to be on the same folder'''
-                            )
+                        )
+
     args = cli_parser.parse_args()
     
-    return [args.url, args.file_with_url]
+    return args
 
 def check_cli_arg(command_line_arguments: list) -> list:
     """ Function get command line arguments and check:
@@ -31,21 +33,17 @@ def check_cli_arg(command_line_arguments: list) -> list:
             - that URL and PATH to file with URL didn't entered in a command line together.
     """
 
-    if command_line_arguments[0] == None and command_line_arguments[1] == None:
-        terminate_script(1)
-    elif command_line_arguments[0] != None and command_line_arguments[1] != None:
-        terminate_script(2)
-    elif command_line_arguments[0] != None:
-        return check_url(command_line_arguments[0])
+    if command_line_arguments.url:
+        return check_url(command_line_arguments.url)
     else:
-        url = extract_url_from_file(command_line_arguments[1])
+        url = extract_url_from_file(command_line_arguments.file_with_url)
         return check_url(url)
 
 def check_url(url:str) -> str:
     """Function check that URL starts with 'https://krisha.kz'"""
 
     if not re.search(re.compile('^https://krisha.kz'), url):
-            terminate_script(3)
+            terminate_script(1)
     else:
         return url
 
@@ -57,7 +55,7 @@ def extract_url_from_file(path:str) -> str:
             url = url.rstrip('\n')
         return url
     except IOError:
-        terminate_script(4)
+        terminate_script(2)
 
 def terminate_script(exit_code: int) -> None:
     """ Function get exit code, print terminate message from dictionary according exit code
@@ -65,13 +63,10 @@ def terminate_script(exit_code: int) -> None:
     """
 
     OUTPUT_MESSAGES = {
-        1 : '''You missed an argument. It's exspected an URL or path to file with URL that should be grabbed. 
-               Start the script with "-h" or "--help" optinal argument to get help''',
-        2 : '''Too many arguments. It's exspected just one argument which URL or path to file with URL to be grabbed.
- 	           Start the script with "-h" or "--help" optinal argument to get help''',
-        3 : "Argument have to begin from 'https://krisha.kz'",
-        4 : "File not found. Check the path and restart the script.",
-        5 : "Page is not available. Check connection and restart the script."
+        1 : "Argument have to begin from 'https://krisha.kz'",
+        2 : "File not found. Check the path and restart the script.",
+        3 : "Page is not available. Check connection and restart the script.",
+        4 : "Page not answer too long. Check connection and restart the script."
         }
     
     print(OUTPUT_MESSAGES[exit_code])
@@ -85,7 +80,9 @@ def grab_html_page(accepted_url: str, page_number: int) -> BeautifulSoup:
     try:
         page = requests.get(url, timeout=0.5)
     except requests.ConnectionError:
-        terminate_script(5)
+        terminate_script(3)
+    except requests.ReadTimeout:
+        terminate_script(4)
     
     if page.status_code == 200:
         print(f'Page {page_number} scrapped. Status code: {page.status_code}', end = '\n')
@@ -146,7 +143,7 @@ def get_number_of_options(soup: BeautifulSoup) -> int:
 
     return numbers_of_options
 
-def get_cost_per_sq_m(data: dict) -> dict:
+def calculate_cost_per_sq_m(data: dict) -> dict:
     """ Function get dictinary with parsed data and return dictionary format {id : int(cost per m^2)}."""
         
     cost_per_sq_m = {key: int(data[key][1]/data[key][2]) for key in data.keys()}
@@ -163,7 +160,7 @@ def main():
 # https://krisha.kz/prodazha/kvartiry/almaty-aujezovskij-mkr-dostyk/?das[live.rooms]=1
 # https://krisha.kz/prodazha/kvartiry/almaty-aujezovskij-mkr-zhetysu-1/?das[live.rooms]=1 
 
-    command_line_arguments = cli_parser()
+    command_line_arguments = parse_cli_arg()
     accepted_url = check_cli_arg(command_line_arguments)
     page_number = int(1)
     numbers_of_added_options = int(0)
@@ -186,7 +183,7 @@ def main():
         if options_counter == numbers_of_added_options: numbers_of_options = get_number_of_options(soup)
         if numbers_of_added_options < numbers_of_options: page_number = page_number + 1
     
-    cost_per_sq_m = get_cost_per_sq_m(data)
+    cost_per_sq_m = calculate_cost_per_sq_m(data)
     print(data, end='\n')
     print(cost_per_sq_m)
 
