@@ -2,6 +2,8 @@ import argparse
 import re
 import requests
 from bs4 import BeautifulSoup
+from random import randint
+from time import sleep
 
 def parse_cli_arg() -> argparse.Namespace:
     """ Function parse a command line. 
@@ -80,9 +82,17 @@ def grab_html_page(accepted_url: str, page_number: int) -> BeautifulSoup:
     try:
         page = requests.get(url, timeout=0.5)
     except requests.ConnectionError:
-        terminate_script(3)
+        try:
+            sleep(3)
+            page = requests.get(url, timeout=0.5)
+        except requests.ConnectionError:
+            terminate_script(3)
     except requests.ReadTimeout:
-        terminate_script(4)
+        try:
+            sleep(3)
+            page = requests.get(url, timeout=0.5)
+        except requests.ReadTimeout:
+            terminate_script(4)
     
     if page.status_code == 200:
         print(f'Page {page_number} scrapped. Status code: {page.status_code}', end = '\n')
@@ -99,35 +109,62 @@ def get_data(soup: BeautifulSoup, data: dict) -> int:
 
     URL = 'https://krisha.kz'
     # find all offers on page
+    
     list_with_data = soup.find('section',
                             class_='a-list a-search-list a-list-with-favs').findAll('div',
                                                          class_=re.compile('^a-card a-storage-live ddl_product'))
-
+    
     for each in list_with_data:
         # parse price of flat
-        text_with_one_flat_price = ''.join(each.find('div',
-                                         class_='a-card__price').text.strip()[:-1].strip().split())
-        price = int(text_with_one_flat_price)
+        
+        text_with_one_flat_price = each.find('div',
+                                    class_='a-card__price').text
+        list_with_one_flat_price_1 = re.findall(r"\b[0-9]*", text_with_one_flat_price)
+        try:
+            price = int(''.join(list_with_one_flat_price_1))
+        except ValueError or TypeError:
+            # Need to add logging
+            price = None
         
         # parse flat's square
         text_with_one_flat_square = each.find('div',
                                          class_='a-card__header-left').find('a',
                                                                  class_='a-card__title').text
         # search start and end indexes of pattern like: "'digits' м"
-        indexes_of_square_number = re.search(r"\d+(\.\d*)?\sм", text_with_one_flat_square) 
-        square = float(text_with_one_flat_square[indexes_of_square_number.start():
+        try:
+            indexes_of_square_number = re.search(r"\d+(\.\d*)?\sм", text_with_one_flat_square) 
+            square = float(text_with_one_flat_square[indexes_of_square_number.start():
                                                         indexes_of_square_number.end()-1])
+        except ValueError or TypeError:
+            # Need to add logging
+            square = None
+
         # parse offer id and url to offer
-        text_with_one_offer_id = each.find('div',
+        try:
+            text_with_one_offer_id = each.find('div',
                                      class_='a-card__header-left').find('a',
                                                                      class_='a-card__title').get('href')
-        url_id = f'{URL}{text_with_one_offer_id}'
-        # search  start and end indexes of digits in str
-        indexes_of_offer_id = re.search(r"\d+", text_with_one_offer_id)
-        id = int(text_with_one_offer_id[indexes_of_offer_id.start():
-                                                    indexes_of_offer_id.end()])
+        
+            url_id = f'{URL}{text_with_one_offer_id}'
+        except ValueError or TypeError:
+            # Need to add logging
+            url_id = None
 
-        data[id] = (url_id, price, square)
+        # search start and end indexes of digits in str
+        try:
+            indexes_of_offer_id = re.search(r"\d+", text_with_one_offer_id)
+            id = int(text_with_one_offer_id[indexes_of_offer_id.start():
+                                                    indexes_of_offer_id.end()])
+        except ValueError or TypeError:
+            # Need to add logging
+            id = text_with_one_offer_id
+
+        # search a date of offer
+
+        text_with_offer_date = each.find('div', class_='card-stats').text.split()
+        offer_date = f'{text_with_offer_date[1]} {text_with_offer_date[2]}'
+
+        data[id] = (url_id, price, square, offer_date)
         
     return len(data)
 
@@ -176,16 +213,17 @@ def main():
         soup = grab_html_page(accepted_url, page_number)
         options_counter = len(data)
         numbers_of_added_options = get_data(soup, data)
-        
+        sleep_time = randint(4, 8)
+        sleep(sleep_time)
         # There is a chance that an offer may be deleted during execution time of scrapper.py script.
         # In this case the last page may not include any offers. Hence, it's worth to check a number of offers on the last
         # page and if it's 0 than we need to invoke get_number_of_options function to update the variable numbers_of_options
         if options_counter == numbers_of_added_options: numbers_of_options = get_number_of_options(soup)
         if numbers_of_added_options < numbers_of_options: page_number = page_number + 1
-    
-    cost_per_sq_m = calculate_cost_per_sq_m(data)
-    print(data, end='\n')
-    print(cost_per_sq_m)
+
+    # cost_per_sq_m = calculate_cost_per_sq_m(data)
+    # print(data, end='\n')
+    # print(cost_per_sq_m)
 
     if len(data) == numbers_of_options:
         print(f'Parsed and added {numbers_of_options} variants')
