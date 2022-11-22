@@ -1,4 +1,6 @@
 import argparse
+import datetime
+import db_api
 import re
 import requests
 from bs4 import BeautifulSoup
@@ -101,7 +103,7 @@ def grab_html_page(accepted_url: str, page_number: int) -> BeautifulSoup:
 
     return soup
 
-def get_data(soup: BeautifulSoup, data: dict) -> int:
+def get_data(soup: BeautifulSoup, offers_data: list) -> int:
     """ Function parse scrapped BeautifulSoup object, added new data in dictinary
         in format {offer id : tuple(url offer id, flat price, flat square)}
         and return lenth of dictinary.
@@ -119,9 +121,9 @@ def get_data(soup: BeautifulSoup, data: dict) -> int:
         
         text_with_one_flat_price = each.find('div',
                                     class_='a-card__price').text
-        list_with_one_flat_price_1 = re.findall(r"\b[0-9]*", text_with_one_flat_price)
+        list_with_one_flat_price = re.findall(r"\b[0-9]+", text_with_one_flat_price)
         try:
-            price = int(''.join(list_with_one_flat_price_1))
+            price = int(''.join(list_with_one_flat_price))
         except ValueError or TypeError:
             # Need to add logging
             price = None
@@ -145,7 +147,8 @@ def get_data(soup: BeautifulSoup, data: dict) -> int:
                                      class_='a-card__header-left').find('a',
                                                                      class_='a-card__title').get('href')
         
-            url_id = f'{URL}{text_with_one_offer_id}'
+            #url_id = f'{URL}{text_with_one_offer_id}'
+            url_id = str(text_with_one_offer_id)
         except ValueError or TypeError:
             # Need to add logging
             url_id = None
@@ -161,12 +164,13 @@ def get_data(soup: BeautifulSoup, data: dict) -> int:
 
         # search a date of offer
 
-        text_with_offer_date = each.find('div', class_='card-stats').text.split()
-        offer_date = f'{text_with_offer_date[1]} {text_with_offer_date[2]}'
+        text_with_offer_date = each.find('div', class_='card-stats').text
+        offer_date = re.search(r"[0-9]+\s([А-Яа-я])+\.", text_with_offer_date).group().split()
+        offer_date = convert_date(offer_date)
 
-        data[id] = (url_id, price, square, offer_date)
+        offers_data.append((url_id, square, price, offer_date))
         
-    return len(data)
+    return len(offers_data)
 
 def get_number_of_options(soup: BeautifulSoup) -> int:
     """ Function parse scrapped BeautifulSoup object and return number of options."""
@@ -180,12 +184,28 @@ def get_number_of_options(soup: BeautifulSoup) -> int:
 
     return numbers_of_options
 
-def calculate_cost_per_sq_m(data: dict) -> dict:
-    """ Function get dictinary with parsed data and return dictionary format {id : int(cost per m^2)}."""
-        
-    cost_per_sq_m = {key: int(data[key][1]/data[key][2]) for key in data.keys()}
+def convert_date(offer_date: list) -> str:
+    """ Function convert date from format e.g. [DD, 'янв.'] to ISO 8601 format: YYYY-MM-DD"""
+
+    month_dict = {
+        'янв.' : 1,
+        'фев.' : 2,
+        'мар.' : 3,
+        'апр.' : 4,
+        'май' : 5,
+        'июн.' : 6,
+        'июл.' : 7,
+        'авг.' : 8,
+        'сен.' : 9,
+        'окт.' : 10,
+        'нояб.' : 11,
+        'дек.' : 12,
+    }
     
-    return cost_per_sq_m
+    month = month_dict[offer_date[1]]
+    year = datetime.date.today().year
+    offer_date = datetime.date(year, month, int(offer_date[0])).isoformat()
+    return offer_date
 
 def main():
     """ Function scrap site by URL which entered in command line.
@@ -200,32 +220,31 @@ def main():
     command_line_arguments = parse_cli_arg()
     accepted_url = check_cli_arg(command_line_arguments)
     page_number = int(1)
-    numbers_of_added_options = int(0)
-    data = {}
+    numbers_of_parsed_options = int(0)
+    offers_data = []
 
     soup = grab_html_page(accepted_url, page_number)
     numbers_of_options = get_number_of_options(soup)
 
     # Scrapped and parsed site pages while numbers of parsed offers less than
     # numbers of offers stated by site
-    while numbers_of_added_options < numbers_of_options:
+    while numbers_of_parsed_options < numbers_of_options:
 
         soup = grab_html_page(accepted_url, page_number)
-        options_counter = len(data)
-        numbers_of_added_options = get_data(soup, data)
+        options_counter = numbers_of_parsed_options
+        numbers_of_parsed_options =  numbers_of_parsed_options + get_data(soup, offers_data)
+        print(offers_data)
+        db_api.write_parsed_data(offers_data)
         sleep_time = randint(4, 8)
         sleep(sleep_time)
         # There is a chance that an offer may be deleted during execution time of scrapper.py script.
         # In this case the last page may not include any offers. Hence, it's worth to check a number of offers on the last
         # page and if it's 0 than we need to invoke get_number_of_options function to update the variable numbers_of_options
-        if options_counter == numbers_of_added_options: numbers_of_options = get_number_of_options(soup)
-        if numbers_of_added_options < numbers_of_options: page_number = page_number + 1
+        if options_counter == numbers_of_parsed_options: numbers_of_options = get_number_of_options(soup)
+        if options_counter == numbers_of_options: break #
+        if numbers_of_parsed_options < numbers_of_options: page_number = page_number + 1
 
-    # cost_per_sq_m = calculate_cost_per_sq_m(data)
-    # print(data, end='\n')
-    # print(cost_per_sq_m)
-
-    if len(data) == numbers_of_options:
+    if numbers_of_parsed_options == numbers_of_options:
         print(f'Parsed and added {numbers_of_options} variants')
     else:
         print(f'Something wrong. Data is not correct', end = '\n')
