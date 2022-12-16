@@ -26,8 +26,8 @@ def write_parsed_data(offers_data: list):
               
                     # If offer's price not equal actual price in database and
                     # offer's date equal actual(later) date in database: update price and cost in database 
-                    if (__is_offer_price_equal_actual_price_in_db(one_offer_data[2], sql_answer_price[0][1], "=") == False and 
-                        __is_offer_date_equal_actual_date_in_db(one_offer_data[3], sql_answer_price[0][2], "=") == True):
+                    if (__is_offer_price_not_equal_actual_price_in_db(one_offer_data[2], sql_answer_price[0][1], "!=") and 
+                        __is_offer_date_equal_actual_date_in_db(one_offer_data[3], sql_answer_price[0][2], "=")):
                         data_for_update_price = (one_offer_data[2], sql_answer_ad[0], sql_answer_price[0][2])
                         __update_price(conn, cur, data_for_update_price)
                         data_for_update_ad = (round(float(one_offer_data[2]/one_offer_data[1]),2),
@@ -36,8 +36,8 @@ def write_parsed_data(offers_data: list):
 
                     # If offer's price not equal actual price in database and
                     # offer's date later than actual(later) date in database: write new price and update cost in database
-                    if (__is_offer_price_equal_actual_price_in_db(one_offer_data[2], sql_answer_price[0][1], "=") == False and 
-                            __is_offer_date_later_than_actual_date_in_db(one_offer_data[3], sql_answer_price[0][2], ">") == True):
+                    if (__is_offer_price_not_equal_actual_price_in_db(one_offer_data[2], sql_answer_price[0][1], "!=") and 
+                            __is_offer_date_later_than_actual_date_in_db(one_offer_data[3], sql_answer_price[0][2], ">")):
                         data_for_insert_price = (one_offer_data[2], one_offer_data[3], sql_answer_ad[0])
                         __insert_into_price_table(conn, cur, data_for_insert_price)
                         data_for_update_ad = (round(float(one_offer_data[2]/one_offer_data[1]),2),
@@ -176,11 +176,15 @@ def comparison(function):
 
         def smaller(*args, **kwargs) -> bool:
             return args[0] < args[1]
+
+        def not_equal(*args, **kwargs) -> bool:
+            return args[0] != args[1]
             
         func_dict = {
         "=" : equal(*args, **kwargs),
         ">" : bigger(*args, **kwargs),
-        "<" : smaller(*args, **kwargs)
+        "<" : smaller(*args, **kwargs),
+        "!=": not_equal(*args, **kwargs)
         }
 
         return func_dict[args[2]]
@@ -188,7 +192,7 @@ def comparison(function):
     return wrapper
 
 @comparison
-def __is_offer_price_equal_actual_price_in_db(first_element: float, second_element: float, operator: str) -> None:
+def __is_offer_price_not_equal_actual_price_in_db(first_element: float, second_element: float, operator: str) -> None:
     """ Function give all recieved arguments to wrapper "comparison" and do nothing
     """
     pass
